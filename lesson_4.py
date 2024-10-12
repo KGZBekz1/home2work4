@@ -1,181 +1,154 @@
-from random import randint, choice
+import random
 
 
-class GameEntity:
-    def __init__(self, name, health, damage):
-        self.__name = name
-        self.__health = health
-        self.__damage = damage
+# Базовый класс персонажа
+class Hero:
+    def __init__(self, name, health, attack):
+        self.name = name
+        self.health = health
+        self.attack = attack
+        self.alive = True
 
-    @property
-    def name(self):
-        return self.__name
+    def take_damage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            self.alive = False
 
-    @property
-    def health(self):
-        return self.__health
-
-    @health.setter
-    def health(self, value):
-        if value < 0:
-            self.__health = 0
-        else:
-            self.__health = value
-
-    @property
-    def damage(self):
-        return self.__damage
-
-    @damage.setter
-    def damage(self, value):
-        self.__damage = value
-
-    def __str__(self):
-        return f'{self.__name} health: {self.__health} damage: {self.__damage}'
+    def is_alive(self):
+        return self.alive
 
 
-class Boss(GameEntity):
-    def __init__(self, name, health, damage):
-        super().__init__(name, health, damage)
-        self.__defence = None
+# Класс босса
+class Boss:
+    def __init__(self, health, attack):
+        self.health = health
+        self.attack = attack
 
-    def choose_defence(self, heroes_list):
-        random_hero = choice(heroes_list)
-        self.__defence = random_hero.ability
+    def take_damage(self, damage):
+        self.health -= damage
 
-    def attack(self, heroes_list):
-        for hero in heroes_list:
-            if hero.health > 0:
-                if type(hero) == Berserk and self.__defence != hero.ability:
-                    hero.blocked_damage = choice([5, 10])
-                    hero.health -= (self.damage - hero.blocked_damage)
-                else:
-                    hero.health -= self.damage
-
-    @property
-    def defence(self):
-        return self.__defence
-
-    def __str__(self):
-        return 'BOSS ' + super().__str__() + f' defence: {self.__defence}'
+    def is_alive(self):
+        return self.health > 0
 
 
-class Hero(GameEntity):
-    def __init__(self, name, health, damage, ability):
-        super().__init__(name, health, damage)
-        self.__ability = ability
+# Witcher: жертвует собой для возрождения другого героя
+class Witcher(Hero):
+    def __init__(self, name, health, attack):
+        super().__init__(name, health, attack)
+        self.revive_used = False
 
-    @property
-    def ability(self):
-        return self.__ability
-
-    def apply_super_power(self, boss, heroes_list):
-        pass
-
-    def attack(self, boss):
-        boss.health -= self.damage
-
-
-class Warrior(Hero):
-    def __init__(self, name, health, damage):
-        super().__init__(name, health, damage, 'CRITICAL_DAMAGE')
-
-    def apply_super_power(self, boss, heroes_list):
-        coeff = randint(2, 5)
-        boss.health -= coeff * self.damage
-        print(f'Warrior {self.name} hits critically {coeff * self.damage}.')
+    def revive(self, team):
+        if not self.revive_used:
+            for hero in team:
+                if not hero.is_alive():
+                    print(f"{self.name} жертвует собой, чтобы возродить {hero.name}")
+                    hero.health = hero.health // 2  # Возвращает часть здоровья
+                    hero.alive = True
+                    self.alive = False
+                    self.revive_used = True
+                    break
 
 
+# Magic: увеличивает атаку всей команды после каждого раунда
 class Magic(Hero):
-    def __init__(self, name, health, damage):
-        super().__init__(name, health, damage, 'BOOST')
+    def __init__(self, name, health, attack, boost):
+        super().__init__(name, health, attack)
+        self.boost = boost
 
-    def apply_super_power(self, boss, heroes_list):
-        # TODO here will be implementation of boosting
-        pass
-
-
-class Berserk(Hero):
-    def __init__(self, name, health, damage):
-        super().__init__(name, health, damage, 'BLOCK_DAMAGE')
-        self.__blocked_damage = 0
-
-    def apply_super_power(self, boss, heroes_list):
-        boss.health -= self.blocked_damage
-        print(f'Berserk {self.name} reverted {self.__blocked_damage} damages to boss.')
-
-    @property
-    def blocked_damage(self):
-        return self.__blocked_damage
-
-    @blocked_damage.setter
-    def blocked_damage(self, value):
-        self.__blocked_damage = value
+    def increase_attack(self, team):
+        for hero in team:
+            if hero.is_alive():
+                hero.attack += self.boost
+                print(f"Атака {hero.name} увеличена на {self.boost}")
 
 
-class Medic(Hero):
-    def __init__(self, name, health, damage, heal_points):
-        super().__init__(name, health, damage, 'HEAL')
-        self.__heal_points = heal_points
+# Hacker: крадет здоровье босса и передает одному из героев
+class Hacker(Hero):
+    def __init__(self, name, health, attack, steal_amount):
+        super().__init__(name, health, attack)
+        self.steal_amount = steal_amount
 
-    def apply_super_power(self, boss, heroes_list):
-        for hero in heroes_list:
-            if hero.health > 0 and hero != self:
-                hero.health += self.__heal_points
-
-
-round_number = 0
-
-
-def is_game_over(boss, heroes_list):
-    if boss.health <= 0:
-        print('Heroes won!!!')
-        return True
-    all_heroes_dead = True
-    for hero in heroes_list:
-        if hero.health > 0:
-            all_heroes_dead = False
-            break
-    if all_heroes_dead:
-        print('Boss won!!!')
-        return True
-    return False
+    def steal_health(self, boss, team):
+        if boss.health > self.steal_amount:
+            boss.take_damage(self.steal_amount)
+            hero = random.choice([h for h in team if h.is_alive()])
+            hero.health += self.steal_amount
+            print(f"{self.name} украл {self.steal_amount} здоровья у босса и передал его {hero.name}")
 
 
-def show_statistics(boss, heroes_list):
-    print(f' ------------- ROUND {round_number} -------------')
-    print(boss)
-    for hero in heroes_list:
-        print(hero)
+# Дополнительные герои
+# Golem: принимает 1/5 урона от босса для других героев
+class Golem(Hero):
+    def __init__(self, name, health, attack):
+        super().__init__(name, health, attack)
+
+    def absorb_damage(self, damage):
+        absorbed = damage // 5
+        self.take_damage(absorbed)
+        print(f"{self.name} принял на себя {absorbed} урона")
 
 
-def play_round(boss, heroes_list):
-    global round_number
-    round_number += 1
-    boss.choose_defence(heroes_list)
-    boss.attack(heroes_list)
-    for hero in heroes_list:
-        if hero.health > 0 and boss.health > 0 and boss.defence != hero.ability:
-            hero.attack(boss)
-            hero.apply_super_power(boss, heroes_list)
-    show_statistics(boss, heroes_list)
+# Thor: имеет шанс оглушить босса на 1 раунд
+class Thor(Hero):
+    def __init__(self, name, health, attack, stun_chance):
+        super().__init__(name, health, attack)
+        self.stun_chance = stun_chance
+
+    def try_stun(self, boss):
+        if random.random() < self.stun_chance:
+            print(f"{self.name} оглушил босса!")
+            return True
+        return False
 
 
-def start_game():
-    boss = Boss(name='Minotavr', health=1000, damage=50)
+# Пример реализации раунда
+def round_fight(heroes, boss):
+    for hero in heroes:
+        if hero.is_alive():
+            # Герои атакуют босса
+            boss.take_damage(hero.attack)
+            print(f"{hero.name} наносит {hero.attack} урона боссу")
 
-    warrior_1 = Warrior(name='Asterix', health=290, damage=10)
-    warrior_2 = Warrior(name='Obelix', health=280, damage=15)
-    magic = Magic(name='Alice', health=270, damage=5)
-    berserk = Berserk(name='Guts', health=220, damage=10)
-    doc = Medic(name='Doc', health=200, damage=5, heal_points=15)
-    assistant = Medic(name='Junior', health=300, damage=5, heal_points=5)
+    if boss.is_alive():
+        print(f"Босс атакует команду!")
+        # Босс атакует всех героев
+        for hero in heroes:
+            if hero.is_alive():
+                damage = boss.attack
+                if isinstance(hero, Golem):
+                    hero.absorb_damage(damage)
+                else:
+                    hero.take_damage(damage)
+                print(f"{hero.name} получает {damage} урона")
 
-    heroes_list = [warrior_1, doc, warrior_2, magic, berserk, assistant]
-    show_statistics(boss, heroes_list)
 
-    while not is_game_over(boss, heroes_list):
-        play_round(boss, heroes_list)
+# Инициализация героев и босса
+witcher = Witcher("Witcher", 100, 20)
+magic = Magic("Magic", 80, 15, 5)
+hacker = Hacker("Hacker", 70, 10, 15)
+golem = Golem("Golem", 150, 10)
+thor = Thor("Thor", 90, 25, 0.3)
 
+heroes = [witcher, magic, hacker, golem, thor]
+boss = Boss(500, 30)
+# Пример игры
 
-start_game()
+round_num = 1
+while boss.is_alive() and any(hero.is_alive() for hero in heroes):
+    print(f"\n--- Раунд {round_num} ---")
+    round_fight(heroes, boss)
+
+    # Способности героев
+    magic.increase_attack(heroes)
+    hacker.steal_health(boss, heroes)
+
+    # Оживление героев Ведьмаком
+    if not witcher.is_alive() and not witcher.revive_used:
+        witcher.revive(heroes)
+
+    round_num += 1
+
+if boss.is_alive():
+    print("Босс победил!")
+else:
+    print("Герои победили!")
